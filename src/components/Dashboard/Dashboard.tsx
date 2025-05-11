@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, FileText, Eye, BarChart } from 'lucide-react';
+import { LogOut, FileText, Eye, BarChart, ArrowLeft, Check } from 'lucide-react';
 import { useSupabaseQuery } from '../../hooks/useSupabaseQuery';
 import { TVShow } from '../../types/tvshow';
 import { supabase } from '../../lib/supabase';
@@ -10,6 +10,7 @@ const Dashboard: React.FC = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [selectedShow, setSelectedShow] = useState<string | null>(null);
+  const [updating, setUpdating] = useState<string | null>(null);
 
   const { 
     data: shows,
@@ -25,6 +26,36 @@ const Dashboard: React.FC = () => {
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
+  };
+
+  const handleToggleWatched = async (show: TVShow) => {
+    const uniqueId = `${show.Show}-${show.Episode}`;
+    setUpdating(uniqueId);
+    try {
+      const { error } = await supabase
+        .from('tvshow')
+        .update({ Watched: !show.Watched })
+        .eq('Show', show.Show)
+        .eq('Episode', show.Episode);
+
+      if (error) throw error;
+
+      // Update local state
+      const updatedShows = shows?.map(s => 
+        s.Show === show.Show && s.Episode === show.Episode
+          ? { ...s, Watched: !s.Watched }
+          : s
+      );
+      // Force a re-render by updating the shows data
+      if (updatedShows) {
+        // Update stats
+        calculateStats(updatedShows);
+      }
+    } catch (error) {
+      console.error('Error updating watch status:', error);
+    } finally {
+      setUpdating(null);
+    }
   };
 
   // Calculate statistics and group shows
@@ -62,6 +93,8 @@ const Dashboard: React.FC = () => {
       {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
     </div>
   );
+
+  const selectedShowEpisodes = selectedShow ? showStats?.[selectedShow]?.episodes : null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50">
@@ -105,16 +138,22 @@ const Dashboard: React.FC = () => {
           />
         </div>
 
-        {/* Show Progress */}
+        {/* Show Progress or Episode List */}
         <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6 mb-8">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-purple-600">Show Progress</h2>
-            <button 
-              className="text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center"
-              onClick={() => setSelectedShow(null)}
-            >
-              View All Episodes
-            </button>
+            <div className="flex items-center gap-3">
+              {selectedShow && (
+                <button
+                  onClick={() => setSelectedShow(null)}
+                  className="text-purple-600 hover:text-purple-700"
+                >
+                  <ArrowLeft size={20} />
+                </button>
+              )}
+              <h2 className="text-xl font-semibold text-purple-600">
+                {selectedShow ? selectedShow : 'Show Progress'}
+              </h2>
+            </div>
           </div>
 
           {loading ? (
@@ -125,10 +164,67 @@ const Dashboard: React.FC = () => {
             <div className="text-center text-red-600 py-12">
               Error loading shows: {error.message}
             </div>
+          ) : selectedShow ? (
+            // Episode list view
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead>
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Episode</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Air Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {selectedShowEpisodes?.map((episode, index) => {
+                    const uniqueId = `${episode.Show}-${episode.Episode}`;
+                    return (
+                      <tr key={uniqueId} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {episode.Episode}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {episode.Title}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(episode['Air Date']).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <button
+                            onClick={() => handleToggleWatched(episode)}
+                            disabled={updating === uniqueId}
+                            className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                              episode.Watched
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                            } hover:bg-opacity-75 transition-colors duration-200`}
+                          >
+                            {updating === uniqueId ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-current"></div>
+                            ) : (
+                              <>
+                                {episode.Watched && <Check size={16} className="mr-1" />}
+                                {episode.Watched ? 'Watched' : 'Unwatched'}
+                              </>
+                            )}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           ) : (
+            // Show progress view
             <div className="space-y-6">
               {Object.entries(showStats || {}).map(([showName, stats]) => (
-                <div key={showName} className="space-y-2">
+                <button
+                  key={showName}
+                  className="w-full text-left space-y-2 hover:bg-white/50 p-3 rounded-xl transition-colors duration-200"
+                  onClick={() => setSelectedShow(showName)}
+                >
                   <div className="flex items-center justify-between">
                     <h3 className="text-gray-700 font-medium">{showName}</h3>
                     <span className="text-sm text-gray-500">
@@ -141,16 +237,18 @@ const Dashboard: React.FC = () => {
                       style={{ width: `${(stats.watched / stats.total) * 100}%` }}
                     ></div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
         </div>
 
         {/* Click message */}
-        <p className="text-center text-gray-500 text-sm">
-          Click on a show above to view its episodes
-        </p>
+        {!selectedShow && (
+          <p className="text-center text-gray-500 text-sm">
+            Click on a show above to view its episodes
+          </p>
+        )}
       </div>
     </div>
   );
