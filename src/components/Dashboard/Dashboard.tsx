@@ -1,17 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Tv, Eye, ListChecks, Calendar, Check } from 'lucide-react';
+import { LogOut, Tv, Eye, ListChecks, Calendar, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSupabaseQuery } from '../../hooks/useSupabaseQuery';
 import { TVShow } from '../../types/tvshow';
 
 const Dashboard: React.FC = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
-  const { data: shows, loading, error } = useSupabaseQuery<TVShow>({
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
+  const { 
+    data: shows, 
+    loading, 
+    error,
+    totalCount,
+    totalPages 
+  } = useSupabaseQuery<TVShow>({
     tableName: 'tvshow',
     columns: '*',
-    orderBy: { column: 'Show' }
+    orderBy: { column: 'Show' },
+    page: currentPage,
+    pageSize
   });
 
   const [importProgress, setImportProgress] = useState(0);
@@ -37,7 +48,7 @@ const Dashboard: React.FC = () => {
 
   // Calculate statistics
   const totalShows = shows ? new Set(shows.map(show => show.Show)).size : 0;
-  const totalEpisodes = shows ? shows.length : 0;
+  const totalEpisodes = totalCount;
   const watchedEpisodes = shows ? shows.filter(show => show.Watched).length : 0;
   const watchedPercentage = totalEpisodes > 0 
     ? Math.round((watchedEpisodes / totalEpisodes) * 100) 
@@ -58,6 +69,12 @@ const Dashboard: React.FC = () => {
       {subtitle && <p className="text-sm text-gray-500">{subtitle}</p>}
     </div>
   );
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -187,12 +204,101 @@ const Dashboard: React.FC = () => {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination */}
+            {!loading && shows && totalPages > 1 && (
+              <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+                <div className="flex-1 flex justify-between sm:hidden">
+                  <button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400"
+                  >
+                    Next
+                  </button>
+                </div>
+                <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm text-gray-700">
+                      Showing <span className="font-medium">{((currentPage - 1) * pageSize) + 1}</span> to{' '}
+                      <span className="font-medium">{Math.min(currentPage * pageSize, totalCount)}</span> of{' '}
+                      <span className="font-medium">{totalCount}</span> results
+                    </p>
+                  </div>
+                  <div>
+                    <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                      <button
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400"
+                      >
+                        <span className="sr-only">Previous</span>
+                        <ChevronLeft className="h-5 w-5" />
+                      </button>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter(page => {
+                          const distance = Math.abs(page - currentPage);
+                          return distance === 0 || distance === 1 || page === 1 || page === totalPages;
+                        })
+                        .map((page, index, array) => {
+                          if (index > 0 && array[index - 1] !== page - 1) {
+                            return [
+                              <span key={`ellipsis-${page}`} className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                                ...
+                              </span>,
+                              <button
+                                key={page}
+                                onClick={() => handlePageChange(page)}
+                                className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                                  currentPage === page
+                                    ? 'z-10 bg-indigo-50 border-indigo-500 text-indigo-600'
+                                    : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                                }`}
+                              >
+                                {page}
+                              </button>
+                            ];
+                          }
+                          return (
+                            <button
+                              key={page}
+                              onClick={() => handlePageChange(page)}
+                              className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                                currentPage === page
+                                  ? 'z-10 bg-indigo-50 border-indigo-500 text-indigo-600'
+                                  : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          );
+                        })}
+                      <button
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400"
+                      >
+                        <span className="sr-only">Next</span>
+                        <ChevronRight className="h-5 w-5" />
+                      </button>
+                    </nav>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Import Complete Message */}
           {!loading && shows && (
             <div className="mt-4 text-sm text-gray-500 text-center">
-              Import Complete - {shows.length} episodes loaded
+              Import Complete - Showing {shows.length} of {totalCount} episodes
             </div>
           )}
         </div>

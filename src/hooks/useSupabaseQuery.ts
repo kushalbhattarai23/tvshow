@@ -13,7 +13,16 @@ interface UseSupabaseQueryOptions<T> {
     column: string;
     ascending?: boolean;
   };
-  limit?: number;
+  page?: number;
+  pageSize?: number;
+}
+
+interface PaginatedResult<T> {
+  data: T[] | null;
+  error: Error | null;
+  loading: boolean;
+  totalCount: number;
+  totalPages: number;
 }
 
 export function useSupabaseQuery<T>({
@@ -21,20 +30,35 @@ export function useSupabaseQuery<T>({
   columns = '*',
   filters = [],
   orderBy,
-  limit,
-}: UseSupabaseQueryOptions<T>) {
+  page = 1,
+  pageSize = 10,
+}: UseSupabaseQueryOptions<T>): PaginatedResult<T> {
   const [data, setData] = useState<T[] | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [totalCount, setTotalCount] = useState<number>(0);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         
+        // First, get the total count
+        const { count: total, error: countError } = await supabase
+          .from(tableName)
+          .select('*', { count: 'exact', head: true });
+
+        if (countError) {
+          throw new Error(countError.message);
+        }
+
+        setTotalCount(total || 0);
+        
+        // Then fetch the paginated data
         let query = supabase
           .from(tableName)
-          .select(columns, { count: 'exact' });
+          .select(columns)
+          .range((page - 1) * pageSize, page * pageSize - 1);
         
         // Apply filters
         filters.forEach(filter => {
@@ -46,11 +70,6 @@ export function useSupabaseQuery<T>({
           query = query.order(orderBy.column, { 
             ascending: orderBy.ascending ?? true 
           });
-        }
-        
-        // Only apply limit if specifically requested
-        if (limit) {
-          query = query.limit(limit);
         }
         
         const { data: result, error: queryError } = await query;
@@ -69,7 +88,13 @@ export function useSupabaseQuery<T>({
     };
 
     fetchData();
-  }, [tableName, columns, JSON.stringify(filters), JSON.stringify(orderBy), limit]);
+  }, [tableName, columns, JSON.stringify(filters), JSON.stringify(orderBy), page, pageSize]);
 
-  return { data, error, loading };
+  return { 
+    data, 
+    error, 
+    loading,
+    totalCount,
+    totalPages: Math.ceil(totalCount / pageSize)
+  };
 }
