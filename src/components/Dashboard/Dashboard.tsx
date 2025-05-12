@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Tv, Eye, ListChecks, Calendar, Check, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react';
 import { useSupabaseQuery } from '../../hooks/useSupabaseQuery';
+import { useSupabaseMutation } from '../../hooks/useSupabaseMutation';
 import { TVShow } from '../../types/tvshow';
 
 const Dashboard: React.FC = () => {
@@ -15,6 +16,7 @@ const Dashboard: React.FC = () => {
     columns: '*',
     orderBy: { column: 'Show' }
   });
+  const { updateRecord, loading: updating } = useSupabaseMutation({ tableName: 'tvshow' });
 
   const [importProgress, setImportProgress] = useState(0);
 
@@ -35,6 +37,22 @@ const Dashboard: React.FC = () => {
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
+  };
+
+  const handleWatchedToggle = async (show: string, episode: string, currentStatus: boolean) => {
+    const success = await updateRecord(
+      'Watched',
+      !currentStatus,
+      [
+        { column: 'Show', value: show },
+        { column: 'Episode', value: episode }
+      ]
+    );
+
+    if (success) {
+      // Refresh the data by forcing a re-fetch
+      window.location.reload();
+    }
   };
 
   // Calculate statistics
@@ -212,18 +230,22 @@ const Dashboard: React.FC = () => {
                           {new Date(episode['Air Date']).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            episode.Watched 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-yellow-100 text-yellow-800'
-                          }`}>
+                          <button
+                            onClick={() => handleWatchedToggle(episode.Show, episode.Episode, episode.Watched)}
+                            disabled={updating}
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors duration-200 ${
+                              episode.Watched 
+                                ? 'bg-green-100 text-green-800 hover:bg-green-200' 
+                                : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
+                            } ${updating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                          >
                             {episode.Watched ? (
                               <>
                                 <Check size={12} className="mr-1" />
                                 Watched
                               </>
-                            ) : 'Unwatched'}
-                          </span>
+                            ) : 'Mark as Watched'}
+                          </button>
                         </td>
                       </tr>
                     ))}
