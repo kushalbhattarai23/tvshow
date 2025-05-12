@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Tv, Eye, ListChecks, Calendar, Check } from 'lucide-react';
+import { LogOut, Tv, Eye, ListChecks, Calendar, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { useSupabaseQuery } from '../../hooks/useSupabaseQuery';
 import { TVShow } from '../../types/tvshow';
 
 const Dashboard: React.FC = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const [showProgress, setShowProgress] = useState(true);
   const { data: shows, loading, error } = useSupabaseQuery<TVShow>({
     tableName: 'tvshow',
     columns: '*',
@@ -42,6 +43,18 @@ const Dashboard: React.FC = () => {
   const watchedPercentage = totalEpisodes > 0 
     ? Math.round((watchedEpisodes / totalEpisodes) * 100) 
     : 0;
+
+  // Calculate show-specific progress
+  const showProgress = shows ? Array.from(new Set(shows.map(show => show.Show))).map(showName => {
+    const showEpisodes = shows.filter(s => s.Show === showName);
+    const watchedShowEpisodes = showEpisodes.filter(s => s.Watched).length;
+    const totalShowEpisodes = showEpisodes.length;
+    return {
+      name: showName,
+      watched: watchedShowEpisodes,
+      total: totalShowEpisodes,
+    };
+  }).sort((a, b) => b.total - a.total) : [];
 
   const StatCard = ({ icon: Icon, title, value, subtitle }: { 
     icon: React.ElementType, 
@@ -100,6 +113,37 @@ const Dashboard: React.FC = () => {
               value={watchedEpisodes}
               subtitle={`${watchedPercentage}% Complete`} 
             />
+          </div>
+
+          {/* Show Progress Section */}
+          <div className="bg-white rounded-lg shadow-md mb-8">
+            <div 
+              className="p-4 flex justify-between items-center cursor-pointer"
+              onClick={() => setShowProgress(!showProgress)}
+            >
+              <h2 className="text-lg font-semibold text-gray-900">Show Progress</h2>
+              {showProgress ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+            </div>
+            {showProgress && (
+              <div className="p-4 border-t border-gray-200">
+                {showProgress.map((show) => (
+                  <div key={show.name} className="mb-4 last:mb-0">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-sm font-medium text-gray-700">{show.name}</span>
+                      <span className="text-sm text-gray-500">
+                        {show.watched} / {show.total} episodes
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${(show.watched / show.total) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Import Progress */}
