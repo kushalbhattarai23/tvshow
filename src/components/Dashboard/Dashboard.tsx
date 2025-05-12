@@ -45,7 +45,7 @@ const Dashboard: React.FC = () => {
     : 0;
 
   // Calculate show-specific progress
-  const showProgress = shows ? Array.from(new Set(shows.map(show => show.Show))).map(showName => {
+  const showProgressData = shows ? Array.from(new Set(shows.map(show => show.Show))).map(showName => {
     const showEpisodes = shows.filter(s => s.Show === showName);
     const watchedShowEpisodes = showEpisodes.filter(s => s.Watched).length;
     const totalShowEpisodes = showEpisodes.length;
@@ -126,7 +126,7 @@ const Dashboard: React.FC = () => {
             </div>
             {showProgress && (
               <div className="p-4 border-t border-gray-200">
-                {showProgress.map((show) => (
+                {showProgressData.map((show) => (
                   <div key={show.name} className="mb-4 last:mb-0">
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-sm font-medium text-gray-700">{show.name}</span>
