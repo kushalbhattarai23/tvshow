@@ -92,6 +92,9 @@ const Dashboard: React.FC = () => {
         { column: 'Episode', value: episode }
       ]
     );
+    if (success) {
+  navigate('/dashboard');
+}
   };
 
   // Calculate statistics
