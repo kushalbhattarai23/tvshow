@@ -85,17 +85,18 @@ const Dashboard: React.FC = () => {
   };
 
   const handleWatchedToggle = async (show: string, episode: string, currentStatus: boolean) => {
-    await updateRecord(
-      { Watched: !currentStatus },
-      [
-        { column: 'Show', value: show },
-        { column: 'Episode', value: episode }
-      ]
-    );
-    if (success) {
-  navigate('/dashboard');
-}
-  };
+  const success = await updateRecord(
+    { Watched: !currentStatus },
+    [
+      { column: 'Show', value: show },
+      { column: 'Episode', value: episode }
+    ]
+  );
+  
+  if (success) {
+    navigate('/dashboard');
+  }
+};
 
   // Calculate statistics
   const totalShows = shows ? new Set(shows.map(show => show.Show)).size : 0;
