@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Tv, Eye, ListChecks, Calendar, Check, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react';
+import { LogOut, Tv, Eye, ListChecks, Calendar, Check, ChevronDown, ChevronUp, ArrowLeft, Edit2, X, Save } from 'lucide-react';
 import { useSupabaseQuery } from '../../hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '../../hooks/useSupabaseMutation';
 import { TVShow } from '../../types/tvshow';
@@ -11,11 +11,15 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [showProgress, setShowProgress] = useState(true);
   const [selectedShow, setSelectedShow] = useState<string | null>(null);
+  const [editingEpisode, setEditingEpisode] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Partial<TVShow>>({});
+  
   const { data: shows, loading, error } = useSupabaseQuery<TVShow>({
     tableName: 'tvshow',
     columns: '*',
     orderBy: { column: 'Show' }
   });
+  
   const { updateRecord, loading: updating } = useSupabaseMutation({ tableName: 'tvshow' });
 
   const [importProgress, setImportProgress] = useState(0);
@@ -39,10 +43,41 @@ const Dashboard: React.FC = () => {
     navigate('/');
   };
 
+  const handleEdit = (episode: TVShow) => {
+    setEditingEpisode(`${episode.Show}-${episode.Episode}`);
+    setEditForm({
+      Show: episode.Show,
+      Episode: episode.Episode,
+      Title: episode.Title,
+      'Air Date': episode['Air Date'],
+      Watched: episode.Watched
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingEpisode(null);
+    setEditForm({});
+  };
+
+  const handleSaveEdit = async (originalShow: string, originalEpisode: string) => {
+    const success = await updateRecord(
+      editForm,
+      [
+        { column: 'Show', value: originalShow },
+        { column: 'Episode', value: originalEpisode }
+      ]
+    );
+
+    if (success) {
+      setEditingEpisode(null);
+      setEditForm({});
+      window.location.reload();
+    }
+  };
+
   const handleWatchedToggle = async (show: string, episode: string, currentStatus: boolean) => {
     const success = await updateRecord(
-      'Watched',
-      !currentStatus,
+      { Watched: !currentStatus },
       [
         { column: 'Show', value: show },
         { column: 'Episode', value: episode }
@@ -50,7 +85,6 @@ const Dashboard: React.FC = () => {
     );
 
     if (success) {
-      // Refresh the data by forcing a re-fetch
       window.location.reload();
     }
   };
@@ -215,40 +249,97 @@ const Dashboard: React.FC = () => {
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Air Date</th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {selectedShowEpisodes?.map((episode, index) => (
-                      <tr key={`${episode.Show}-${episode.Episode}-${index}`} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {episode.Episode}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-500">
-                          {episode.Title}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(episode['Air Date']).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <button
-                            onClick={() => handleWatchedToggle(episode.Show, episode.Episode, episode.Watched)}
-                            disabled={updating}
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors duration-200 ${
-                              episode.Watched 
-                                ? 'bg-green-100 text-green-800 hover:bg-green-200' 
-                                : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
-                            } ${updating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                          >
-                            {episode.Watched ? (
-                              <>
-                                <Check size={12} className="mr-1" />
-                                Watched
-                              </>
-                            ) : 'Mark as Watched'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {selectedShowEpisodes?.map((episode, index) => {
+                      const isEditing = editingEpisode === `${episode.Show}-${episode.Episode}`;
+                      return (
+                        <tr key={`${episode.Show}-${episode.Episode}-${index}`} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={editForm.Episode || ''}
+                                onChange={(e) => setEditForm({ ...editForm, Episode: e.target.value })}
+                                className="w-full rounded border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                              />
+                            ) : (
+                              episode.Episode
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-500">
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={editForm.Title || ''}
+                                onChange={(e) => setEditForm({ ...editForm, Title: e.target.value })}
+                                className="w-full rounded border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                              />
+                            ) : (
+                              episode.Title
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {isEditing ? (
+                              <input
+                                type="date"
+                                value={editForm['Air Date'] || ''}
+                                onChange={(e) => setEditForm({ ...editForm, 'Air Date': e.target.value })}
+                                className="rounded border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                              />
+                            ) : (
+                              new Date(episode['Air Date']).toLocaleDateString()
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <button
+                              onClick={() => handleWatchedToggle(episode.Show, episode.Episode, episode.Watched)}
+                              disabled={updating || isEditing}
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors duration-200 ${
+                                episode.Watched 
+                                  ? 'bg-green-100 text-green-800 hover:bg-green-200' 
+                                  : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
+                              } ${(updating || isEditing) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                            >
+                              {episode.Watched ? (
+                                <>
+                                  <Check size={12} className="mr-1" />
+                                  Watched
+                                </>
+                              ) : 'Mark as Watched'}
+                            </button>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {isEditing ? (
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={() => handleSaveEdit(episode.Show, episode.Episode)}
+                                  disabled={updating}
+                                  className="inline-flex items-center p-1 text-green-600 hover:text-green-900"
+                                >
+                                  <Save size={16} />
+                                </button>
+                                <button
+                                  onClick={handleCancelEdit}
+                                  className="inline-flex items-center p-1 text-gray-600 hover:text-gray-900"
+                                >
+                                  <X size={16} />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => handleEdit(episode)}
+                                className="inline-flex items-center p-1 text-gray-600 hover:text-gray-900"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

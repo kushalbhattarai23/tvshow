@@ -10,15 +10,14 @@ export function useSupabaseMutation({ tableName }: UseSupabaseMutationOptions) {
   const [error, setError] = useState<Error | null>(null);
 
   const updateRecord = async (
-    column: string,
-    value: any,
+    updates: Record<string, any>,
     filters: { column: string; value: any }[]
   ) => {
     try {
       setLoading(true);
       setError(null);
 
-      let query = supabase.from(tableName).update({ [column]: value });
+      let query = supabase.from(tableName).update(updates);
 
       filters.forEach(filter => {
         query = query.eq(filter.column, filter.value);
