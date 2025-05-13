@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { LogOut, Tv, Eye, ListChecks, Calendar, Check, ChevronDown, ChevronUp, ArrowLeft, Edit2, X, Save } from 'lucide-react';
 import { useSupabaseQuery } from '../../hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '../../hooks/useSupabaseMutation';
+import { useSupabaseRealtime } from '../../hooks/useSupabaseRealtime';
 import { TVShow } from '../../types/tvshow';
 
 const Dashboard: React.FC = () => {
@@ -14,13 +15,22 @@ const Dashboard: React.FC = () => {
   const [editingEpisode, setEditingEpisode] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<TVShow>>({});
   
-  const { data: shows, loading, error } = useSupabaseQuery<TVShow>({
+  const { data: shows, loading, error, refetch } = useSupabaseQuery<TVShow>({
     tableName: 'tvshow',
     columns: '*',
     orderBy: { column: 'Show' }
   });
   
   const { updateRecord, loading: updating } = useSupabaseMutation({ tableName: 'tvshow' });
+
+  // Subscribe to real-time changes
+  useSupabaseRealtime({
+    tableName: 'tvshow',
+    event: '*',
+    callback: () => {
+      refetch();
+    },
+  });
 
   const [importProgress, setImportProgress] = useState(0);
 
@@ -71,22 +81,17 @@ const Dashboard: React.FC = () => {
     if (success) {
       setEditingEpisode(null);
       setEditForm({});
-      window.location.reload();
     }
   };
 
   const handleWatchedToggle = async (show: string, episode: string, currentStatus: boolean) => {
-    const success = await updateRecord(
+    await updateRecord(
       { Watched: !currentStatus },
       [
         { column: 'Show', value: show },
         { column: 'Episode', value: episode }
       ]
     );
-
-    if (success) {
-      window.location.reload();
-    }
   };
 
   // Calculate statistics
