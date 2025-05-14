@@ -5,7 +5,6 @@ import Home from './components/Home/Home';
 import SignIn from './components/Auth/SignIn';
 import SignUp from './components/Auth/SignUp';
 import Dashboard from './components/Dashboard/Dashboard';
-import ShowDetails from './components/ShowDetails/ShowDetails';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -21,14 +20,6 @@ function App() {
             element={
               <ProtectedRoute>
                 <Dashboard />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/:showName" 
-            element={
-              <ProtectedRoute>
-                <ShowDetails />
               </ProtectedRoute>
             } 
           />
