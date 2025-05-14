@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { useNavigate } from 'react-router-dom';
 
 interface UseSupabaseQueryOptions<T> {
   tableName: string;
@@ -26,28 +27,27 @@ export function useSupabaseQuery<T>({
   const [data, setData] = useState<T[] | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const navigate = useNavigate();
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
       
       let query = supabase
         .from(tableName)
         .select(columns, { count: 'exact' });
       
-      // Apply filters
       filters.forEach(filter => {
         query = query.filter(filter.column, filter.operator, filter.value);
       });
       
-      // Apply ordering
       if (orderBy) {
         query = query.order(orderBy.column, { 
           ascending: orderBy.ascending ?? true 
         });
       }
       
-      // Only apply limit if specifically requested
       if (limit) {
         query = query.limit(limit);
       }
@@ -55,17 +55,18 @@ export function useSupabaseQuery<T>({
       const { data: result, error: queryError } = await query;
       
       if (queryError) {
-        throw new Error(queryError.message);
+        throw queryError;
       }
       
       setData(result as T[]);
     } catch (err) {
-      setError(err as Error);
       console.error('Error fetching data:', err);
+      setError(err as Error);
+      navigate('/signin');
     } finally {
       setLoading(false);
     }
-  }, [tableName, columns, JSON.stringify(filters), JSON.stringify(orderBy), limit]);
+  }, [tableName, columns, JSON.stringify(filters), JSON.stringify(orderBy), limit, navigate]);
 
   useEffect(() => {
     fetchData();

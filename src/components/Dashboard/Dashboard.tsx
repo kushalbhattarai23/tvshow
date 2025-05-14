@@ -20,8 +20,22 @@ const Dashboard: React.FC = () => {
     columns: '*',
     orderBy: { column: 'Show' }
   });
+
+  useEffect(() => {
+    if (error) {
+      console.error('Error fetching data:', error);
+      refetch();
+    }
+  }, [error, refetch]);
   
-  const { updateRecord, loading: updating } = useSupabaseMutation({ tableName: 'tvshow' });
+  const { updateRecord, loading: updating, error: updateError } = useSupabaseMutation({ tableName: 'tvshow' });
+
+  useEffect(() => {
+    if (updateError) {
+      console.error('Error updating data:', updateError);
+      navigate('/dashboard');
+    }
+  }, [updateError, navigate]);
 
   // Subscribe to real-time changes
   useSupabaseRealtime({
@@ -49,54 +63,81 @@ const Dashboard: React.FC = () => {
   }, [loading]);
 
   const handleSignOut = async () => {
-    await signOut();
-    navigate('/');
+    try {
+      await signOut();
+      navigate('/');
+    } catch (error) {
+      console.error('Error signing out:', error);
+      navigate('/signin');
+    }
   };
 
   const handleEdit = (episode: TVShow) => {
-    setEditingEpisode(`${episode.Show}-${episode.Episode}`);
-    setEditForm({
-      Show: episode.Show,
-      Episode: episode.Episode,
-      Title: episode.Title,
-      'Air Date': episode['Air Date'],
-      Watched: episode.Watched
-    });
+    try {
+      setEditingEpisode(`${episode.Show}-${episode.Episode}`);
+      setEditForm({
+        Show: episode.Show,
+        Episode: episode.Episode,
+        Title: episode.Title,
+        'Air Date': episode['Air Date'],
+        Watched: episode.Watched
+      });
+    } catch (error) {
+      console.error('Error editing episode:', error);
+      navigate('/dashboard');
+    }
   };
 
   const handleCancelEdit = () => {
-    setEditingEpisode(null);
-    setEditForm({});
+    try {
+      setEditingEpisode(null);
+      setEditForm({});
+    } catch (error) {
+      console.error('Error canceling edit:', error);
+      navigate('/dashboard');
+    }
   };
 
   const handleSaveEdit = async (originalShow: string, originalEpisode: string) => {
-    const success = await updateRecord(
-      editForm,
-      [
-        { column: 'Show', value: originalShow },
-        { column: 'Episode', value: originalEpisode }
-      ]
-    );
+    try {
+      const success = await updateRecord(
+        editForm,
+        [
+          { column: 'Show', value: originalShow },
+          { column: 'Episode', value: originalEpisode }
+        ]
+      );
 
-    if (success) {
-      setEditingEpisode(null);
-      setEditForm({});
+      if (success) {
+        setEditingEpisode(null);
+        setEditForm({});
+      } else {
+        throw new Error('Failed to update record');
+      }
+    } catch (error) {
+      console.error('Error saving edit:', error);
+      navigate('/dashboard');
     }
   };
 
   const handleWatchedToggle = async (show: string, episode: string, currentStatus: boolean) => {
-  const success = await updateRecord(
-    { Watched: !currentStatus },
-    [
-      { column: 'Show', value: show },
-      { column: 'Episode', value: episode }
-    ]
-  );
-  
-  if (success) {
-    navigate('/dashboard');
-  }
-};
+    try {
+      const success = await updateRecord(
+        { Watched: !currentStatus },
+        [
+          { column: 'Show', value: show },
+          { column: 'Episode', value: episode }
+        ]
+      );
+      
+      if (!success) {
+        throw new Error('Failed to update watched status');
+      }
+    } catch (error) {
+      console.error('Error toggling watched status:', error);
+      navigate('/dashboard');
+    }
+  };
 
   // Calculate statistics
   const totalShows = shows ? new Set(shows.map(show => show.Show)).size : 0;
