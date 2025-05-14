@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Tv, Eye, ListChecks, Calendar, Check, ChevronDown, ChevronUp, ArrowLeft, Edit2, X, Save } from 'lucide-react';
+import { LogOut, Tv, Eye, ListChecks, Calendar, Check, ChevronDown, ChevronUp, ArrowLeft, Edit2, X, Save, RefreshCw } from 'lucide-react';
 import { useSupabaseQuery } from '../../hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '../../hooks/useSupabaseMutation';
 import { useSupabaseRealtime } from '../../hooks/useSupabaseRealtime';
@@ -14,6 +14,7 @@ const Dashboard: React.FC = () => {
   const [selectedShow, setSelectedShow] = useState<string | null>(null);
   const [editingEpisode, setEditingEpisode] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<TVShow>>({});
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   const { data: shows, loading, error, refetch } = useSupabaseQuery<TVShow>({
     tableName: 'tvshow',
@@ -61,6 +62,18 @@ const Dashboard: React.FC = () => {
       setImportProgress(100);
     }
   }, [loading]);
+
+  const handleRefresh = async () => {
+    try {
+      setIsRefreshing(true);
+      await refetch();
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+      navigate('/dashboard');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const handleSignOut = async () => {
     try {
@@ -196,8 +209,16 @@ const Dashboard: React.FC = () => {
             <div className="flex items-center">
               <h1 className="text-xl font-semibold text-gray-900">Episode Tracker</h1>
             </div>
-            <div className="flex items-center">
-              <span className="text-sm text-gray-500 mr-4">{user?.email}</span>
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-500">{user?.email}</span>
+              <button
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-indigo-600 bg-indigo-50 hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200 ease-in-out disabled:opacity-50"
+              >
+                <RefreshCw size={16} className={`mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+                {isRefreshing ? 'Refreshing...' : 'Refresh'}
+              </button>
               <button
                 onClick={handleSignOut}
                 className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200 ease-in-out"
