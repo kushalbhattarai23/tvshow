@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Tv, Eye, ListChecks, Calendar, Check, ChevronDown, ChevronUp, ArrowLeft, Edit2, X, Save } from 'lucide-react';
+import { LogOut, Tv, Eye, ListChecks, Calendar, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { useSupabaseQuery } from '../../hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '../../hooks/useSupabaseMutation';
 import { useSupabaseRealtime } from '../../hooks/useSupabaseRealtime';
@@ -11,9 +11,6 @@ const Dashboard: React.FC = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [showProgress, setShowProgress] = useState(true);
-  const [selectedShow, setSelectedShow] = useState<string | null>(null);
-  const [editingEpisode, setEditingEpisode] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<Partial<TVShow>>({});
   
   const { data: shows, loading, error, refetch } = useSupabaseQuery<TVShow>({
     tableName: 'tvshow',
@@ -23,7 +20,6 @@ const Dashboard: React.FC = () => {
   
   const { updateRecord, loading: updating } = useSupabaseMutation({ tableName: 'tvshow' });
 
-  // Subscribe to real-time changes
   useSupabaseRealtime({
     tableName: 'tvshow',
     event: '*',
@@ -53,50 +49,28 @@ const Dashboard: React.FC = () => {
     navigate('/');
   };
 
-  const handleEdit = (episode: TVShow) => {
-    setEditingEpisode(`${episode.Show}-${episode.Episode}`);
-    setEditForm({
-      Show: episode.Show,
-      Episode: episode.Episode,
-      Title: episode.Title,
-      'Air Date': episode['Air Date'],
-      Watched: episode.Watched
-    });
-  };
-
-  const handleCancelEdit = () => {
-    setEditingEpisode(null);
-    setEditForm({});
-  };
-
-  const handleSaveEdit = async (originalShow: string, originalEpisode: string) => {
+  const handleWatchedToggle = async (show: string, episode: string, currentStatus: boolean) => {
     const success = await updateRecord(
-      editForm,
+      { Watched: !currentStatus },
       [
-        { column: 'Show', value: originalShow },
-        { column: 'Episode', value: originalEpisode }
+        { column: 'Show', value: show },
+        { column: 'Episode', value: episode }
       ]
     );
-
+    
     if (success) {
-      setEditingEpisode(null);
-      setEditForm({});
+      await refetch();
     }
   };
 
-  const handleWatchedToggle = async (show: string, episode: string, currentStatus: boolean) => {
-  const success = await updateRecord(
-    { Watched: !currentStatus },
-    [
-      { column: 'Show', value: show },
-      { column: 'Episode', value: episode }
-    ]
-  );
-  
-  if (success) {
-    navigate('/dashboard');
-  }
-};
+  const formatShowNameForUrl = (showName: string) => {
+    return showName.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  };
+
+  const navigateToShow = (showName: string) => {
+    const formattedName = formatShowNameForUrl(showName);
+    navigate(`/${formattedName}`);
+  };
 
   // Calculate statistics
   const totalShows = shows ? new Set(shows.map(show => show.Show)).size : 0;
@@ -117,19 +91,6 @@ const Dashboard: React.FC = () => {
       total: totalShowEpisodes,
     };
   }).sort((a, b) => b.total - a.total) : [];
-
-  // Get selected show episodes
-  const selectedShowEpisodes = shows?.filter(show => show.Show === selectedShow)
-    .sort((a, b) => {
-      // Sort by watched status first (unwatched first)
-      if (a.Watched !== b.Watched) {
-        return a.Watched ? 1 : -1;
-      }
-      // Then sort by air date
-      return new Date(a['Air Date']).getTime() - new Date(b['Air Date']).getTime();
-    });
-
-  const selectedShowProgress = showProgressData.find(show => show.name === selectedShow);
 
   const StatCard = ({ icon: Icon, title, value, subtitle }: { 
     icon: React.ElementType, 
@@ -171,189 +132,59 @@ const Dashboard: React.FC = () => {
 
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
-          {!selectedShow ? (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                <StatCard 
-                  icon={Tv} 
-                  title="Total Shows" 
-                  value={totalShows} 
-                />
-                <StatCard 
-                  icon={ListChecks} 
-                  title="Total Episodes" 
-                  value={totalEpisodes} 
-                />
-                <StatCard 
-                  icon={Eye} 
-                  title="Watched Episodes" 
-                  value={watchedEpisodes}
-                  subtitle={`${watchedPercentage}% Complete`} 
-                />
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <StatCard 
+              icon={Tv} 
+              title="Total Shows" 
+              value={totalShows} 
+            />
+            <StatCard 
+              icon={ListChecks} 
+              title="Total Episodes" 
+              value={totalEpisodes} 
+            />
+            <StatCard 
+              icon={Eye} 
+              title="Watched Episodes" 
+              value={watchedEpisodes}
+              subtitle={`${watchedPercentage}% Complete`} 
+            />
+          </div>
 
-              {/* Show Progress Section */}
-              <div className="bg-white rounded-lg shadow-md mb-8">
-                <div 
-                  className="p-4 flex justify-between items-center cursor-pointer"
-                  onClick={() => setShowProgress(!showProgress)}
-                >
-                  <h2 className="text-lg font-semibold text-gray-900">Show Progress</h2>
-                  {showProgress ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                </div>
-                {showProgress && (
-                  <div className="p-4 border-t border-gray-200">
-                    {showProgressData.map((show) => (
-                      <div 
-                        key={show.name} 
-                        className="mb-4 last:mb-0 cursor-pointer hover:bg-gray-50 p-2 rounded-md transition-colors duration-200"
-                        onClick={() => setSelectedShow(show.name)}
-                      >
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="text-sm font-medium text-gray-700">{show.name}</span>
-                          <span className="text-sm text-gray-500">
-                            {show.watched} / {show.total} episodes
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${(show.watched / show.total) * 100}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="bg-white rounded-lg shadow-md">
-              <div className="p-4 border-b border-gray-200">
-                <button
-                  onClick={() => setSelectedShow(null)}
-                  className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-4"
-                >
-                  <ArrowLeft size={16} className="mr-1" />
-                  Back to All Shows
-                </button>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">{selectedShow}</h2>
-                <div className="flex items-center text-lg text-gray-700">
-                  <span className="font-medium">{selectedShowProgress?.watched}</span>
-                  <span className="mx-1">/</span>
-                  <span>{selectedShowProgress?.total} episodes</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-3 mt-2">
-                  <div 
-                    className="bg-indigo-600 h-3 rounded-full transition-all duration-300"
-                    style={{ width: `${(selectedShowProgress?.watched ?? 0) / (selectedShowProgress?.total ?? 1) * 100}%` }}
-                  />
-                </div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Episode</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Air Date</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {selectedShowEpisodes?.map((episode, index) => {
-                      const isEditing = editingEpisode === `${episode.Show}-${episode.Episode}`;
-                      return (
-                        <tr key={`${episode.Show}-${episode.Episode}-${index}`} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {isEditing ? (
-                              <input
-                                type="text"
-                                value={editForm.Episode || ''}
-                                onChange={(e) => setEditForm({ ...editForm, Episode: e.target.value })}
-                                className="w-full rounded border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                              />
-                            ) : (
-                              episode.Episode
-                            )}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-500">
-                            {isEditing ? (
-                              <input
-                                type="text"
-                                value={editForm.Title || ''}
-                                onChange={(e) => setEditForm({ ...editForm, Title: e.target.value })}
-                                className="w-full rounded border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                              />
-                            ) : (
-                              episode.Title
-                            )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {isEditing ? (
-                              <input
-                                type="date"
-                                value={editForm['Air Date'] || ''}
-                                onChange={(e) => setEditForm({ ...editForm, 'Air Date': e.target.value })}
-                                className="rounded border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                              />
-                            ) : (
-                              new Date(episode['Air Date']).toLocaleDateString()
-                            )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button
-                              onClick={() => handleWatchedToggle(episode.Show, episode.Episode, episode.Watched)}
-                              disabled={updating || isEditing}
-                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors duration-200 ${
-                                episode.Watched 
-                                  ? 'bg-green-100 text-green-800 hover:bg-green-200' 
-                                  : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
-                              } ${(updating || isEditing) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                            >
-                              {episode.Watched ? (
-                                <>
-                                  <Check size={12} className="mr-1" />
-                                  Watched
-                                </>
-                              ) : 'Mark as Watched'}
-                            </button>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {isEditing ? (
-                              <div className="flex space-x-2">
-                                <button
-                                  onClick={() => handleSaveEdit(episode.Show, episode.Episode)}
-                                  disabled={updating}
-                                  className="inline-flex items-center p-1 text-green-600 hover:text-green-900"
-                                >
-                                  <Save size={16} />
-                                </button>
-                                <button
-                                  onClick={handleCancelEdit}
-                                  className="inline-flex items-center p-1 text-gray-600 hover:text-gray-900"
-                                >
-                                  <X size={16} />
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => handleEdit(episode)}
-                                className="inline-flex items-center p-1 text-gray-600 hover:text-gray-900"
-                              >
-                                <Edit2 size={16} />
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+          {/* Show Progress Section */}
+          <div className="bg-white rounded-lg shadow-md mb-8">
+            <div 
+              className="p-4 flex justify-between items-center cursor-pointer"
+              onClick={() => setShowProgress(!showProgress)}
+            >
+              <h2 className="text-lg font-semibold text-gray-900">Show Progress</h2>
+              {showProgress ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
             </div>
-          )}
+            {showProgress && (
+              <div className="p-4 border-t border-gray-200">
+                {showProgressData.map((show) => (
+                  <div 
+                    key={show.name} 
+                    className="mb-4 last:mb-0 cursor-pointer hover:bg-gray-50 p-2 rounded-md transition-colors duration-200"
+                    onClick={() => navigateToShow(show.name)}
+                  >
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-sm font-medium text-gray-700">{show.name}</span>
+                      <span className="text-sm text-gray-500">
+                        {show.watched} / {show.total} episodes
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${(show.watched / show.total) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Import Progress */}
           {loading && (
@@ -374,7 +205,7 @@ const Dashboard: React.FC = () => {
           )}
 
           {/* Import Complete Message */}
-          {!loading && shows && !selectedShow && (
+          {!loading && shows && (
             <div className="mt-4 text-sm text-gray-500 text-center">
               Import Complete - {shows.length} episodes loaded
             </div>
