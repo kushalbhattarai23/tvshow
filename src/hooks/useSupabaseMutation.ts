@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useNavigate } from 'react-router-dom';
 
 interface UseSupabaseMutationOptions {
   tableName: string;
@@ -8,6 +9,7 @@ interface UseSupabaseMutationOptions {
 export function useSupabaseMutation({ tableName }: UseSupabaseMutationOptions) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const navigate = useNavigate();
 
   const updateRecord = async (
     updates: Record<string, any>,
@@ -26,13 +28,14 @@ export function useSupabaseMutation({ tableName }: UseSupabaseMutationOptions) {
       const { error: updateError } = await query;
 
       if (updateError) {
-        throw new Error(updateError.message);
+        throw updateError;
       }
 
       return true;
     } catch (err) {
-      setError(err as Error);
       console.error('Error updating data:', err);
+      setError(err as Error);
+      navigate('/signin');
       return false;
     } finally {
       setLoading(false);
