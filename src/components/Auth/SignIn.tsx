@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 const SignIn: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { signIn } = useAuth();
@@ -16,7 +17,7 @@ const SignIn: React.FC = () => {
     setLoading(true);
 
     try {
-      const { error } = await signIn(email, password);
+      const { error } = await signIn(email, password, rememberMe);
       if (error) {
         setError(error.message);
       } else {
@@ -77,6 +78,20 @@ const SignIn: React.FC = () => {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
+          </div>
+
+          <div className="flex items-center">
+            <input
+              id="remember-me"
+              name="remember-me"
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+            />
+            <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
+              Remember me
+            </label>
           </div>
 
           <div>

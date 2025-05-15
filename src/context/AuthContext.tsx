@@ -5,7 +5,7 @@ import { User, AuthResponse } from '../types/supabase';
 type AuthContextType = {
   user: User | null;
   signUp: (email: string, password: string) => Promise<AuthResponse>;
-  signIn: (email: string, password: string) => Promise<AuthResponse>;
+  signIn: (email: string, password: string, rememberMe?: boolean) => Promise<AuthResponse>;
   signOut: () => Promise<void>;
   loading: boolean;
 };
@@ -18,9 +18,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     // Check active sessions and set the user
-    const session = supabase.auth.getSession();
-    setUser(session ? (session as any).user : null);
-    setLoading(false);
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setUser(session?.user ?? null);
+      } catch (error) {
+        console.error('Error checking auth session:', error);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
 
     // Listen for changes on auth state
     const { data: authListener } = supabase.auth.onAuthStateChange(
@@ -51,12 +61,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Sign in function
-  const signIn = async (email: string, password: string) => {
+  // Sign in function with remember me option
+  const signIn = async (email: string, password: string, rememberMe = false) => {
     try {
       const response = await supabase.auth.signInWithPassword({
         email,
         password,
+        options: {
+          persistSession: rememberMe
+        }
       });
       return response as AuthResponse;
     } catch (error) {
