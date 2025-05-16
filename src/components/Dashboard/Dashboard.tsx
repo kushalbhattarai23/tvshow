@@ -6,6 +6,7 @@ import { useSupabaseQuery } from '../../hooks/useSupabaseQuery';
 import { useSupabaseMutation } from '../../hooks/useSupabaseMutation';
 import { useSupabaseRealtime } from '../../hooks/useSupabaseRealtime';
 import { TVShow } from '../../types/tvshow';
+import MyLists from './MyLists';
 
 const Dashboard: React.FC = () => {
   const { user, signOut } = useAuth();
@@ -313,55 +314,59 @@ const Dashboard: React.FC = () => {
                 />
               </div>
 
-              <div className="bg-white rounded-lg shadow-md mb-8">
-                <div 
-                  className="p-4 flex justify-between items-center cursor-pointer"
-                  onClick={() => setShowProgress(!showProgress)}
-                >
-                  <h2 className="text-lg font-semibold text-gray-900">Show Progress</h2>
-                  {showProgress ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                </div>
-                {showProgress && (
-                  <div className="border-t border-gray-200">
-                    <div className="flex border-b border-gray-200">
-                      <button
-                        className={`flex-1 px-4 py-2 text-sm font-medium ${
-                          activeTab === 'watching'
-                            ? 'text-indigo-600 border-b-2 border-indigo-600'
-                            : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                        onClick={() => setActiveTab('watching')}
-                      >
-                        Watching ({watching.length})
-                      </button>
-                      <button
-                        className={`flex-1 px-4 py-2 text-sm font-medium ${
-                          activeTab === 'not-started'
-                            ? 'text-indigo-600 border-b-2 border-indigo-600'
-                            : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                        onClick={() => setActiveTab('not-started')}
-                      >
-                        Not Started ({notStarted.length})
-                      </button>
-                      <button
-                        className={`flex-1 px-4 py-2 text-sm font-medium ${
-                          activeTab === 'stopped'
-                            ? 'text-indigo-600 border-b-2 border-indigo-600'
-                            : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                        onClick={() => setActiveTab('stopped')}
-                      >
-                        Completed ({stopped.length})
-                      </button>
-                    </div>
-                    <div className="p-4">
-                      {activeTab === 'watching' && <ShowProgressTab shows={watching} title="Currently Watching" />}
-                      {activeTab === 'not-started' && <ShowProgressTab shows={notStarted} title="Not Started" />}
-                      {activeTab === 'stopped' && <ShowProgressTab shows={stopped} title="Completed" />}
-                    </div>
+              <div className="space-y-8">
+                <div className="bg-white rounded-lg shadow-md">
+                  <div 
+                    className="p-4 flex justify-between items-center cursor-pointer"
+                    onClick={() => setShowProgress(!showProgress)}
+                  >
+                    <h2 className="text-lg font-semibold text-gray-900">Show Progress</h2>
+                    {showProgress ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                   </div>
-                )}
+                  {showProgress && (
+                    <div className="border-t border-gray-200">
+                      <div className="flex border-b border-gray-200">
+                        <button
+                          className={`flex-1 px-4 py-2 text-sm font-medium ${
+                            activeTab === 'watching'
+                              ? 'text-indigo-600 border-b-2 border-indigo-600'
+                              : 'text-gray-500 hover:text-gray-700'
+                          }`}
+                          onClick={() => setActiveTab('watching')}
+                        >
+                          Watching ({watching.length})
+                        </button>
+                        <button
+                          className={`flex-1 px-4 py-2 text-sm font-medium ${
+                            activeTab === 'not-started'
+                              ? 'text-indigo-600 border-b-2 border-indigo-600'
+                              : 'text-gray-500 hover:text-gray-700'
+                          }`}
+                          onClick={() => setActiveTab('not-started')}
+                        >
+                          Not Started ({notStarted.length})
+                        </button>
+                        <button
+                          className={`flex-1 px-4 py-2 text-sm font-medium ${
+                            activeTab === 'stopped'
+                              ? 'text-indigo-600 border-b-2 border-indigo-600'
+                              : 'text-gray-500 hover:text-gray-700'
+                          }`}
+                          onClick={() => setActiveTab('stopped')}
+                        >
+                          Completed ({stopped.length})
+                        </button>
+                      </div>
+                      <div className="p-4">
+                        {activeTab === 'watching' && <ShowProgressTab shows={watching} title="Currently Watching" />}
+                        {activeTab === 'not-started' && <ShowProgressTab shows={notStarted} title="Not Started" />}
+                        {activeTab === 'stopped' && <ShowProgressTab shows={stopped} title="Completed" />}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <MyLists shows={shows} />
               </div>
             </>
           ) : (
