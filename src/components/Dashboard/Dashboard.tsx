@@ -15,6 +15,7 @@ const Dashboard: React.FC = () => {
   const [editingEpisode, setEditingEpisode] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<TVShow>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'watching' | 'not-started' | 'stopped'>('watching');
   
   const { data: shows, loading, error, refetch } = useSupabaseQuery<TVShow>({
     tableName: 'tvshow',
@@ -38,7 +39,6 @@ const Dashboard: React.FC = () => {
     }
   }, [updateError, navigate]);
 
-  // Subscribe to real-time changes
   useSupabaseRealtime({
     tableName: 'tvshow',
     event: '*',
@@ -152,7 +152,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Calculate statistics
   const totalShows = shows ? new Set(shows.map(show => show.Show)).size : 0;
   const totalEpisodes = shows ? shows.length : 0;
   const watchedEpisodes = shows ? shows.filter(show => show.Watched).length : 0;
@@ -160,30 +159,62 @@ const Dashboard: React.FC = () => {
     ? Math.round((watchedEpisodes / totalEpisodes) * 100) 
     : 0;
 
-  // Calculate show-specific progress
-  const showProgressData = shows ? Array.from(new Set(shows.map(show => show.Show))).map(showName => {
-    const showEpisodes = shows.filter(s => s.Show === showName);
-    const watchedShowEpisodes = showEpisodes.filter(s => s.Watched).length;
-    const totalShowEpisodes = showEpisodes.length;
-    return {
-      name: showName,
-      watched: watchedShowEpisodes,
-      total: totalShowEpisodes,
-    };
-  }).sort((a, b) => b.total - a.total) : [];
+  const categorizeShows = () => {
+    if (!shows) return { watching: [], notStarted: [], stopped: [] };
 
-  // Get selected show episodes
+    const showMap = new Map();
+    shows.forEach(episode => {
+      if (!showMap.has(episode.Show)) {
+        showMap.set(episode.Show, {
+          name: episode.Show,
+          episodes: [],
+          watchedCount: 0,
+          totalEpisodes: 0
+        });
+      }
+      const showData = showMap.get(episode.Show);
+      showData.episodes.push(episode);
+      if (episode.Watched) showData.watchedCount++;
+      showData.totalEpisodes++;
+    });
+
+    const watching = [];
+    const notStarted = [];
+    const stopped = [];
+
+    showMap.forEach(show => {
+      const progress = (show.watchedCount / show.totalEpisodes) * 100;
+      if (progress === 0) {
+        notStarted.push(show);
+      } else if (progress === 100) {
+        stopped.push(show);
+      } else {
+        watching.push(show);
+      }
+    });
+
+    return {
+      watching: watching.sort((a, b) => b.watchedCount / b.totalEpisodes - a.watchedCount / a.totalEpisodes),
+      notStarted: notStarted.sort((a, b) => b.totalEpisodes - a.totalEpisodes),
+      stopped: stopped.sort((a, b) => b.totalEpisodes - a.totalEpisodes)
+    };
+  };
+
+  const { watching, notStarted, stopped } = categorizeShows();
+
   const selectedShowEpisodes = shows?.filter(show => show.Show === selectedShow)
     .sort((a, b) => {
-      // Sort by watched status first (unwatched first)
       if (a.Watched !== b.Watched) {
         return a.Watched ? 1 : -1;
       }
-      // Then sort by air date
       return new Date(a['Air Date']).getTime() - new Date(b['Air Date']).getTime();
     });
 
-  const selectedShowProgress = showProgressData.find(show => show.name === selectedShow);
+  const selectedShowProgress = shows ? {
+    name: selectedShow,
+    watched: shows.filter(s => s.Show === selectedShow && s.Watched).length,
+    total: shows.filter(s => s.Show === selectedShow).length,
+  } : null;
 
   const StatCard = ({ icon: Icon, title, value, subtitle }: { 
     icon: React.ElementType, 
@@ -198,6 +229,34 @@ const Dashboard: React.FC = () => {
       </div>
       <p className="text-3xl font-bold text-gray-900 mb-1">{value}</p>
       {subtitle && <p className="text-sm text-gray-500">{subtitle}</p>}
+    </div>
+  );
+
+  const ShowProgressTab = ({ shows, title }: { shows: any[], title: string }) => (
+    <div className="space-y-4">
+      {shows.map((show) => (
+        <div 
+          key={show.name} 
+          className="cursor-pointer hover:bg-gray-50 p-2 rounded-md transition-colors duration-200"
+          onClick={() => setSelectedShow(show.name)}
+        >
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-sm font-medium text-gray-700">{show.name}</span>
+            <span className="text-sm text-gray-500">
+              {show.watchedCount} / {show.totalEpisodes} episodes
+            </span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div 
+              className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${(show.watchedCount / show.totalEpisodes) * 100}%` }}
+            />
+          </div>
+        </div>
+      ))}
+      {shows.length === 0 && (
+        <p className="text-gray-500 text-center py-4">No shows in this category</p>
+      )}
     </div>
   );
 
@@ -254,7 +313,6 @@ const Dashboard: React.FC = () => {
                 />
               </div>
 
-              {/* Show Progress Section */}
               <div className="bg-white rounded-lg shadow-md mb-8">
                 <div 
                   className="p-4 flex justify-between items-center cursor-pointer"
@@ -264,27 +322,44 @@ const Dashboard: React.FC = () => {
                   {showProgress ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                 </div>
                 {showProgress && (
-                  <div className="p-4 border-t border-gray-200">
-                    {showProgressData.map((show) => (
-                      <div 
-                        key={show.name} 
-                        className="mb-4 last:mb-0 cursor-pointer hover:bg-gray-50 p-2 rounded-md transition-colors duration-200"
-                        onClick={() => setSelectedShow(show.name)}
+                  <div className="border-t border-gray-200">
+                    <div className="flex border-b border-gray-200">
+                      <button
+                        className={`flex-1 px-4 py-2 text-sm font-medium ${
+                          activeTab === 'watching'
+                            ? 'text-indigo-600 border-b-2 border-indigo-600'
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                        onClick={() => setActiveTab('watching')}
                       >
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="text-sm font-medium text-gray-700">{show.name}</span>
-                          <span className="text-sm text-gray-500">
-                            {show.watched} / {show.total} episodes
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${(show.watched / show.total) * 100}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))}
+                        Watching ({watching.length})
+                      </button>
+                      <button
+                        className={`flex-1 px-4 py-2 text-sm font-medium ${
+                          activeTab === 'not-started'
+                            ? 'text-indigo-600 border-b-2 border-indigo-600'
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                        onClick={() => setActiveTab('not-started')}
+                      >
+                        Not Started ({notStarted.length})
+                      </button>
+                      <button
+                        className={`flex-1 px-4 py-2 text-sm font-medium ${
+                          activeTab === 'stopped'
+                            ? 'text-indigo-600 border-b-2 border-indigo-600'
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                        onClick={() => setActiveTab('stopped')}
+                      >
+                        Completed ({stopped.length})
+                      </button>
+                    </div>
+                    <div className="p-4">
+                      {activeTab === 'watching' && <ShowProgressTab shows={watching} title="Currently Watching" />}
+                      {activeTab === 'not-started' && <ShowProgressTab shows={notStarted} title="Not Started" />}
+                      {activeTab === 'stopped' && <ShowProgressTab shows={stopped} title="Completed" />}
+                    </div>
                   </div>
                 )}
               </div>
@@ -417,7 +492,6 @@ const Dashboard: React.FC = () => {
             </div>
           )}
 
-          {/* Import Progress */}
           {loading && (
             <div className="mb-8">
               <div className="bg-white p-6 rounded-lg shadow-md">
@@ -435,7 +509,6 @@ const Dashboard: React.FC = () => {
             </div>
           )}
 
-          {/* Import Complete Message */}
           {!loading && shows && !selectedShow && (
             <div className="mt-4 text-sm text-gray-500 text-center">
               Import Complete - {shows.length} episodes loaded
